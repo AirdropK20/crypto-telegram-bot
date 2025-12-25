@@ -30,7 +30,9 @@ def send_telegram(text):
         "text": text,
         "disable_web_page_preview": False
     }
-    requests.post(url, json=payload, timeout=10)
+    r = requests.post(url, json=payload, timeout=10)
+    print("TELEGRAM STATUS:", r.status_code)
+    print("TELEGRAM RESPONSE:", r.text)
 
 def get_last_hash():
     if not os.path.exists(STATE_FILE):
