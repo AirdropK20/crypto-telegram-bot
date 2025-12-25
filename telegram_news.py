@@ -1,3 +1,4 @@
+print("=== SCRIPT STARTED ===")
 import os
 import requests
 import hashlib
