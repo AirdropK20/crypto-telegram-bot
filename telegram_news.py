@@ -1,4 +1,4 @@
-print("🔥 RSS telegram_news.py IS NOW RUNNING 🔥")
+print("🔥 telegram_news.py MULTI-RSS STARTED 🔥")
 
 import os
 import requests
@@ -12,17 +12,17 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 STATE_FILE = "sent_hashes.txt"
-MAX_STORED = 50
+MAX_STORED = 100
 
 # =====================
-# RSS FEEDS (FREE)
+# MULTI RSS FEEDS
 # =====================
-RSS_FEEDS = [
-    "https://cointelegraph.com/rss",
-    # Optional (uncomment if you want more)
-    # "https://www.theblock.co/rss.xml",
-    # "https://decrypt.co/feed"
-]
+RSS_FEEDS = {
+    "Cointelegraph": "https://cointelegraph.com/rss",
+    "The Block": "https://www.theblock.co/rss.xml",
+    "Decrypt": "https://decrypt.co/feed",
+    "Bitcoin Magazine": "https://bitcoinmagazine.com/.rss/full/"
+}
 
 # =====================
 # KEYWORDS
@@ -45,7 +45,7 @@ UPDATE_KEYWORDS = [
 ]
 
 # =====================
-# HELPERS
+# LABEL & EMOJI LOGIC
 # =====================
 def pick_label(title):
     t = title.lower()
@@ -67,15 +67,9 @@ def pick_emoji(title):
         return "🔄"
     return "🔹"
 
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    r = requests.post(url, json={
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": text,
-        "disable_web_page_preview": False
-    }, timeout=10)
-    print("TELEGRAM STATUS:", r.status_code)
-
+# =====================
+# STATE HANDLING
+# =====================
 def get_sent_hashes():
     if not os.path.exists(STATE_FILE):
         return set()
@@ -89,29 +83,45 @@ def save_sent_hashes(hashes):
             f.write(h + "\n")
 
 # =====================
-# FETCH RSS
+# TELEGRAM SENDER
+# =====================
+def send_telegram(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    r = requests.post(
+        url,
+        json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": text,
+            "disable_web_page_preview": False
+        },
+        timeout=10
+    )
+    print("TELEGRAM STATUS:", r.status_code)
+
+# =====================
+# RSS FETCHER
 # =====================
 def fetch_rss():
     items = []
-    for feed in RSS_FEEDS:
+    for source, feed in RSS_FEEDS.items():
         try:
             r = requests.get(feed, timeout=10)
             root = ET.fromstring(r.content)
             for item in root.findall(".//item"):
-                title = item.findtext("title", "")
-                link = item.findtext("link", "")
-                source = feed.split("//")[1].split("/")[0]
-                items.append({
-                    "title": title,
-                    "url": link,
-                    "source": source
-                })
+                title = item.findtext("title", "").strip()
+                link = item.findtext("link", "").strip()
+                if title and link:
+                    items.append({
+                        "title": title,
+                        "url": link,
+                        "source": source
+                    })
         except Exception as e:
-            print("RSS error:", e)
+            print(f"RSS ERROR [{source}]:", e)
     return items
 
 # =====================
-# MAIN
+# MAIN LOGIC
 # =====================
 def main():
     sent_hashes = get_sent_hashes()
@@ -128,7 +138,7 @@ def main():
 
         h = hashlib.md5(f"{title}{url}".lower().encode()).hexdigest()
         if h in sent_hashes:
-    continue
+            continue
 
         emoji = pick_emoji(title)
         message = (
@@ -139,8 +149,10 @@ def main():
 
         send_telegram(message)
         sent_hashes.add(h)
-save_sent_hashes(sent_hashes)
-return
+        save_sent_hashes(sent_hashes)
+        return
+
+    print("No new high-priority news found.")
 
 if __name__ == "__main__":
     main()
