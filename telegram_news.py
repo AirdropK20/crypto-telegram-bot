@@ -1,20 +1,30 @@
-print("🔥 telegram_news.py IS NOW RUNNING 🔥")
+print("🔥 RSS telegram_news.py IS NOW RUNNING 🔥")
 
 import os
 import requests
 import hashlib
+import xml.etree.ElementTree as ET
 
 # =====================
-# ENV VARIABLES
+# TELEGRAM CONFIG
 # =====================
-CRYPTOPANIC_KEY = os.getenv("CRYPTOPANIC_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 STATE_FILE = "last_hash.txt"
 
 # =====================
-# KEYWORDS (HIGH PRIORITY)
+# RSS FEEDS (FREE)
+# =====================
+RSS_FEEDS = [
+    "https://cointelegraph.com/rss",
+    # Optional (uncomment if you want more)
+    # "https://www.theblock.co/rss.xml",
+    # "https://decrypt.co/feed"
+]
+
+# =====================
+# KEYWORDS
 # =====================
 BREAKING_KEYWORDS = [
     "breaking", "urgent", "emergency",
@@ -56,14 +66,6 @@ def pick_emoji(title):
         return "🔄"
     return "🔹"
 
-def fetch_news():
-    url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}"
-    r = requests.get(url, timeout=10)
-    if r.status_code != 200:
-        print("CryptoPanic error:", r.status_code)
-        return []
-    return r.json().get("results", [])
-
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     r = requests.post(url, json={
@@ -72,7 +74,6 @@ def send_telegram(text):
         "disable_web_page_preview": False
     }, timeout=10)
     print("TELEGRAM STATUS:", r.status_code)
-    print("TELEGRAM RESPONSE:", r.text)
 
 def get_last_hash():
     if not os.path.exists(STATE_FILE):
@@ -84,19 +85,38 @@ def save_hash(h):
         f.write(h)
 
 # =====================
+# FETCH RSS
+# =====================
+def fetch_rss():
+    items = []
+    for feed in RSS_FEEDS:
+        try:
+            r = requests.get(feed, timeout=10)
+            root = ET.fromstring(r.content)
+            for item in root.findall(".//item"):
+                title = item.findtext("title", "")
+                link = item.findtext("link", "")
+                source = feed.split("//")[1].split("/")[0]
+                items.append({
+                    "title": title,
+                    "url": link,
+                    "source": source
+                })
+        except Exception as e:
+            print("RSS error:", e)
+    return items
+
+# =====================
 # MAIN
 # =====================
 def main():
     last_hash = get_last_hash()
-    news = fetch_news()
+    news = fetch_rss()
 
     for item in news:
-        title = item.get("title", "")
-        url = item.get("url", "")
-        source = item.get("source", {}).get("title", "Source")
-
-        if not title or not url:
-            continue
+        title = item["title"]
+        url = item["url"]
+        source = item["source"]
 
         label = pick_label(title)
         if label not in ["BREAKING", "UPDATE"]:
