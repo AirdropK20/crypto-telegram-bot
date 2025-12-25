@@ -61,11 +61,19 @@ def main():
         if h == last_hash:
             return
 
-        message = (
-            f"🔹 ALERT: {title}\n\n"
-            f"Source: {source}\n"
-            f"{url}"
-        )
+emoji = pick_emoji(title)
+label = pick_label(title)
+
+if label:
+    headline = f"{emoji} {label}: {title}"
+else:
+    headline = f"{emoji} {title}"
+
+message = (
+    f"{headline}\n\n"
+    f"Source: {source}\n"
+    f"{url}"
+)
 
         send_telegram(message)
         save_hash(h)
@@ -73,3 +81,21 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def pick_label(title):
+    t = title.lower()
+
+    if any(k in t for k in [
+        "breaking", "hack", "exploit", "halt",
+        "outage", "paused", "suspended",
+        "bankruptcy", "liquidated"
+    ]):
+        return "BREAKING"
+
+    if any(k in t for k in [
+        "update", "resumes", "confirms",
+        "clarifies", "statement", "response"
+    ]):
+        return "UPDATE"
+
+    return ""
