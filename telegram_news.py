@@ -11,7 +11,8 @@ import xml.etree.ElementTree as ET
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-STATE_FILE = "last_hash.txt"
+STATE_FILE = "sent_hashes.txt"
+MAX_STORED = 50
 
 # =====================
 # RSS FEEDS (FREE)
@@ -75,14 +76,17 @@ def send_telegram(text):
     }, timeout=10)
     print("TELEGRAM STATUS:", r.status_code)
 
-def get_last_hash():
+def get_sent_hashes():
     if not os.path.exists(STATE_FILE):
-        return ""
-    return open(STATE_FILE).read().strip()
+        return set()
+    with open(STATE_FILE) as f:
+        return set(line.strip() for line in f if line.strip())
 
-def save_hash(h):
+def save_sent_hashes(hashes):
+    hashes = list(hashes)[-MAX_STORED:]
     with open(STATE_FILE, "w") as f:
-        f.write(h)
+        for h in hashes:
+            f.write(h + "\n")
 
 # =====================
 # FETCH RSS
@@ -110,7 +114,7 @@ def fetch_rss():
 # MAIN
 # =====================
 def main():
-    last_hash = get_last_hash()
+    sent_hashes = get_sent_hashes()
     news = fetch_rss()
 
     for item in news:
@@ -123,8 +127,8 @@ def main():
             continue
 
         h = hashlib.md5(f"{title}{url}".lower().encode()).hexdigest()
-        if h == last_hash:
-            return
+        if h in sent_hashes:
+    continue
 
         emoji = pick_emoji(title)
         message = (
@@ -134,8 +138,9 @@ def main():
         )
 
         send_telegram(message)
-        save_hash(h)
-        return
+        sent_hashes.add(h)
+save_sent_hashes(sent_hashes)
+return
 
 if __name__ == "__main__":
     main()
