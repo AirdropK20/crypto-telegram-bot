@@ -1,5 +1,3 @@
-print("=== SCRIPT STARTED ===")
-
 import os
 import requests
 import hashlib
@@ -18,6 +16,54 @@ KEYWORDS = [
 def is_relevant(title):
     return any(k in title.lower() for k in KEYWORDS)
 
+def pick_emoji(title):
+    t = title.lower()
+
+    if any(k in t for k in [
+        "breaking", "hack", "exploit", "halt",
+        "outage", "paused", "suspended",
+        "bankruptcy", "liquidated"
+    ]):
+        return "🚨"
+
+    if any(k in t for k in [
+        "sec", "regulation", "regulator",
+        "approval", "lawsuit", "court", "ban"
+    ]):
+        return "🏛️"
+
+    if any(k in t for k in [
+        "inflow", "outflow", "volume",
+        "dominance", "fees", "data"
+    ]):
+        return "📊"
+
+    if any(k in t for k in [
+        "update", "resumes", "confirms",
+        "clarifies", "statement", "response"
+    ]):
+        return "🔄"
+
+    return "🔹"
+
+def pick_label(title):
+    t = title.lower()
+
+    if any(k in t for k in [
+        "breaking", "hack", "exploit", "halt",
+        "outage", "paused", "suspended",
+        "bankruptcy", "liquidated"
+    ]):
+        return "BREAKING"
+
+    if any(k in t for k in [
+        "update", "resumes", "confirms",
+        "clarifies", "statement", "response"
+    ]):
+        return "UPDATE"
+
+    return ""
+
 def fetch_news():
     url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}&kind=news"
     r = requests.get(url, timeout=10)
@@ -32,9 +78,7 @@ def send_telegram(text):
         "text": text,
         "disable_web_page_preview": False
     }
-    r = requests.post(url, json=payload, timeout=10)
-    print("TELEGRAM STATUS:", r.status_code)
-    print("TELEGRAM RESPONSE:", r.text)
+    requests.post(url, json=payload, timeout=10)
 
 def get_last_hash():
     if not os.path.exists(STATE_FILE):
@@ -79,27 +123,5 @@ def main():
         save_hash(h)
         return
 
-        send_telegram(message)
-        save_hash(h)
-        return
-
 if __name__ == "__main__":
     main()
-
-def pick_label(title):
-    t = title.lower()
-
-    if any(k in t for k in [
-        "breaking", "hack", "exploit", "halt",
-        "outage", "paused", "suspended",
-        "bankruptcy", "liquidated"
-    ]):
-        return "BREAKING"
-
-    if any(k in t for k in [
-        "update", "resumes", "confirms",
-        "clarifies", "statement", "response"
-    ]):
-        return "UPDATE"
-
-    return ""
