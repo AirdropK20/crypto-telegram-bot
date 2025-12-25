@@ -1,3 +1,5 @@
+print("🔥 THIS FILE IS RUNNING 🔥")
+
 import os
 import requests
 import hashlib
