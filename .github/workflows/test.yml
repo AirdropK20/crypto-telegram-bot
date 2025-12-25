@@ -1,18 +1,24 @@
-name: Telegram Test
+name: Crypto Telegram Alerts
 
 on:
+  schedule:
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
-  test:
+  alert:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       - uses: actions/setup-python@v4
         with:
           python-version: "3.10"
+
       - run: pip install requests
-      - run: python telegram_test.py
+
+      - run: python telegram_news.py
         env:
+          CRYPTOPANIC_KEY: ${{ secrets.CRYPTOPANIC_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
