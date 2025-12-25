@@ -57,7 +57,7 @@ def pick_emoji(title):
     return "🔹"
 
 def fetch_news():
-    url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}&kind=news"
+    url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}"
     r = requests.get(url, timeout=10)
     if r.status_code != 200:
         print("CryptoPanic error:", r.status_code)
