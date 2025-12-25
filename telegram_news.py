@@ -2,67 +2,88 @@ import os
 import requests
 import hashlib
 
+# =====================
+# ENVIRONMENT VARIABLES
+# =====================
 CRYPTOPANIC_KEY = os.getenv("CRYPTOPANIC_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 STATE_FILE = "last_hash.txt"
 
-KEYWORDS = [
-    "breaking", "exchange", "etf", "approval",
-    "halt", "hack", "exploit", "inflow", "outflow"
+# =====================
+# COINTELEGRAPH KEYWORDS
+# =====================
+
+COINTELEGRAPH_BREAKING_KEYWORDS = [
+    # Exchange / Infrastructure
+    "halt", "halted", "paused", "suspended",
+    "withdrawals", "deposits disabled",
+    "outage", "downtime",
+
+    # Security / Exploits
+    "hack", "hacked", "exploit", "breach",
+    "drained", "compromised", "attack",
+    "vulnerability",
+
+    # Legal / Regulatory
+    "sec", "lawsuit", "charged", "charges",
+    "court ruling", "settlement", "fine",
+    "banned", "ban", "approval", "rejection",
+
+    # Financial Collapse
+    "bankruptcy", "insolvent", "liquidation",
+    "defaults", "restructuring",
+
+    # Protocol / Network Failure
+    "chain halted", "network halted",
+    "consensus failure", "rollback",
+
+    # Emergency Language
+    "breaking", "emergency", "urgent"
 ]
 
-def is_relevant(title):
-    return any(k in title.lower() for k in KEYWORDS)
+# =====================
+# HELPER FUNCTIONS
+# =====================
 
-def pick_emoji(title):
+def pick_label(title: str) -> str:
+    t = title.lower()
+    if any(k in t for k in COINTELEGRAPH_BREAKING_KEYWORDS):
+        return "BREAKING"
+    return ""
+
+def pick_emoji(title: str) -> str:
     t = title.lower()
 
     if any(k in t for k in [
-        "breaking", "hack", "exploit", "halt",
-        "outage", "paused", "suspended",
-        "bankruptcy", "liquidated"
+        "hack", "exploit", "breach",
+        "drained", "attack", "compromised"
     ]):
         return "🚨"
 
     if any(k in t for k in [
-        "sec", "regulation", "regulator",
-        "approval", "lawsuit", "court", "ban"
+        "sec", "lawsuit", "court",
+        "approval", "rejection", "ban"
     ]):
         return "🏛️"
 
     if any(k in t for k in [
-        "inflow", "outflow", "volume",
-        "dominance", "fees", "data"
+        "halt", "paused", "suspended",
+        "outage", "downtime"
     ]):
-        return "📊"
+        return "⚠️"
 
     if any(k in t for k in [
-        "update", "resumes", "confirms",
-        "clarifies", "statement", "response"
+        "bankruptcy", "liquidation", "insolvent"
     ]):
-        return "🔄"
+        return "💥"
 
-    return "🔹"
+    return "🚨"
 
-def pick_label(title):
-    t = title.lower()
-
-    if any(k in t for k in [
-        "breaking", "hack", "exploit", "halt",
-        "outage", "paused", "suspended",
-        "bankruptcy", "liquidated"
-    ]):
-        return "BREAKING"
-
-    if any(k in t for k in [
-        "update", "resumes", "confirms",
-        "clarifies", "statement", "response"
-    ]):
-        return "UPDATE"
-
-    return ""
+# =====================
+# CORE LOGIC
+# =====================
 
 def fetch_news():
     url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}&kind=news"
@@ -71,7 +92,7 @@ def fetch_news():
         return []
     return r.json().get("results", [])
 
-def send_telegram(text):
+def send_telegram(text: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -85,9 +106,13 @@ def get_last_hash():
         return ""
     return open(STATE_FILE).read().strip()
 
-def save_hash(h):
+def save_hash(h: str):
     with open(STATE_FILE, "w") as f:
         f.write(h)
+
+# =====================
+# MAIN ENTRY POINT
+# =====================
 
 def main():
     last_hash = get_last_hash()
@@ -98,7 +123,11 @@ def main():
         url = item.get("url", "")
         source = item.get("source", {}).get("title", "Source")
 
-        if not title or not url or not is_relevant(title):
+        if not title or not url:
+            continue
+
+        label = pick_label(title)
+        if label != "BREAKING":
             continue
 
         h = hashlib.md5(title.encode()).hexdigest()
@@ -106,12 +135,7 @@ def main():
             return
 
         emoji = pick_emoji(title)
-        label = pick_label(title)
-
-        if label:
-            headline = f"{emoji} {label}: {title}"
-        else:
-            headline = f"{emoji} {title}"
+        headline = f"{emoji} BREAKING: {title}"
 
         message = (
             f"{headline}\n\n"
