@@ -1,30 +1,20 @@
-name: Crypto Telegram Alerts
+name: Crypto Telegram Alerts (DEBUG)
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
-  alert:
+  debug:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
-
-      - run: pip install requests
-
-      - run: |
-    echo "=== CURRENT DIRECTORY ==="
-    pwd
-    echo "=== FILES IN ROOT ==="
-    ls -la
-    echo "=== SEARCH FOR telegram_news.py ==="
-    find . -name "telegram_news.py"
-        env:
-          CRYPTOPANIC_KEY: ${{ secrets.CRYPTOPANIC_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Show working directory
+        run: |
+          echo "=== CURRENT DIRECTORY ==="
+          pwd
+          echo "=== FILES IN ROOT ==="
+          ls -la
+          echo "=== SEARCH FOR telegram_news.py ==="
+          find . -name "telegram_news.py"
