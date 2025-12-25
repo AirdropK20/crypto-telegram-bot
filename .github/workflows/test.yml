@@ -1,4 +1,4 @@
-name: Crypto Telegram Alerts
+name: Crypto Telegram Alerts (RSS)
 
 on:
   schedule:
@@ -19,9 +19,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run Telegram Bot
+      - name: Run RSS Telegram Bot
         run: python telegram_news.py
         env:
-          CRYPTOPANIC_KEY: ${{ secrets.CRYPTOPANIC_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
