@@ -1,11 +1,11 @@
-print("🔥 THIS FILE IS RUNNING 🔥")
+print("🔥 telegram_news.py IS NOW RUNNING 🔥")
 
 import os
 import requests
 import hashlib
 
 # =====================
-# ENVIRONMENT VARIABLES
+# ENV VARIABLES
 # =====================
 CRYPTOPANIC_KEY = os.getenv("CRYPTOPANIC_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -14,8 +14,47 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 STATE_FILE = "last_hash.txt"
 
 # =====================
-# CORE FUNCTIONS
+# KEYWORDS (HIGH PRIORITY)
 # =====================
+BREAKING_KEYWORDS = [
+    "breaking", "urgent", "emergency",
+    "halt", "halted", "paused", "suspended",
+    "hack", "hacked", "exploit", "breach",
+    "attack", "drained", "compromised",
+    "outage", "downtime",
+    "sec", "lawsuit", "court",
+    "approval", "rejection", "ban",
+    "bankruptcy", "liquidation", "insolvent"
+]
+
+UPDATE_KEYWORDS = [
+    "update", "confirms", "confirmed",
+    "statement", "responds", "response",
+    "resumes", "restored", "reopened"
+]
+
+# =====================
+# HELPERS
+# =====================
+def pick_label(title):
+    t = title.lower()
+    if any(k in t for k in BREAKING_KEYWORDS):
+        return "BREAKING"
+    if any(k in t for k in UPDATE_KEYWORDS):
+        return "UPDATE"
+    return ""
+
+def pick_emoji(title):
+    t = title.lower()
+    if any(k in t for k in ["hack", "exploit", "breach", "attack"]):
+        return "🚨"
+    if any(k in t for k in ["sec", "court", "lawsuit"]):
+        return "🏛️"
+    if any(k in t for k in ["halt", "paused", "outage"]):
+        return "⚠️"
+    if "update" in t:
+        return "🔄"
+    return "🔹"
 
 def fetch_news():
     url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}&kind=news"
@@ -27,12 +66,11 @@ def fetch_news():
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
+    r = requests.post(url, json={
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
         "disable_web_page_preview": False
-    }
-    r = requests.post(url, json=payload, timeout=10)
+    }, timeout=10)
     print("TELEGRAM STATUS:", r.status_code)
     print("TELEGRAM RESPONSE:", r.text)
 
@@ -46,41 +84,38 @@ def save_hash(h):
         f.write(h)
 
 # =====================
-# MAIN (FORCE TEST MODE)
+# MAIN
 # =====================
-
 def main():
-    print("=== FORCE TEST MODE STARTED ===")
-
     last_hash = get_last_hash()
     news = fetch_news()
 
-    if not news:
-        print("No news returned from CryptoPanic")
+    for item in news:
+        title = item.get("title", "")
+        url = item.get("url", "")
+        source = item.get("source", {}).get("title", "Source")
+
+        if not title or not url:
+            continue
+
+        label = pick_label(title)
+        if label not in ["BREAKING", "UPDATE"]:
+            continue
+
+        h = hashlib.md5(f"{title}{url}".lower().encode()).hexdigest()
+        if h == last_hash:
+            return
+
+        emoji = pick_emoji(title)
+        message = (
+            f"{emoji} {label}: {title}\n\n"
+            f"Source: {source}\n"
+            f"{url}"
+        )
+
+        send_telegram(message)
+        save_hash(h)
         return
-
-    item = news[0]  # FORCE first item
-
-    title = item.get("title", "NO TITLE")
-    url = item.get("url", "")
-    source = item.get("source", {}).get("title", "Source")
-
-    h = hashlib.md5(title.lower().encode()).hexdigest()
-    if h == last_hash:
-        print("Duplicate detected, skipping")
-        return
-
-    message = (
-        f"🧪 TEST ALERT\n\n"
-        f"{title}\n\n"
-        f"Source: {source}\n"
-        f"{url}"
-    )
-
-    send_telegram(message)
-    save_hash(h)
-
-    print("=== TEST MESSAGE SENT ===")
 
 if __name__ == "__main__":
     main()
