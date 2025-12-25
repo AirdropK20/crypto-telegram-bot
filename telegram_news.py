@@ -46,29 +46,10 @@ def save_hash(h):
         f.write(h)
 
 def main():
-    send_telegram("✅ BOT IS LIVE – waiting for real crypto news")
-return
-    for item in news:
-        title = item.get("title", "")
-        url = item.get("url", "")
-        source = item.get("source", {}).get("title", "Source")
+    print("=== MAIN FUNCTION ENTERED ===")
+    send_telegram("✅ HARD TEST – YOU SHOULD SEE THIS")
+    print("=== MESSAGE SENT FUNCTION CALLED ===")
 
-        if not title or not url or not is_relevant(title):
-            continue
-
-        h = hashlib.md5(title.encode()).hexdigest()
-        if h == last_hash:
-            return
-
-        message = (
-            f"🔹 ALERT: {title}\n\n"
-            f"Source: {source}\n"
-            f"{url}"
-        )
-
-        send_telegram(message)
-        save_hash(h)
-        return
 
 if __name__ == "__main__":
     main()
