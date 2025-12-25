@@ -15,7 +15,7 @@ STATE_FILE = "last_hash.txt"
 # COINTELEGRAPH KEYWORDS
 # =====================
 
-COINTELEGRAPH_BREAKING_KEYWORDS = [
+BREAKING_KEYWORDS = [
     # Exchange / Infrastructure
     "halt", "halted", "paused", "suspended",
     "withdrawals", "deposits disabled",
@@ -35,7 +35,7 @@ COINTELEGRAPH_BREAKING_KEYWORDS = [
     "bankruptcy", "insolvent", "liquidation",
     "defaults", "restructuring",
 
-    # Protocol / Network Failure
+    # Network Failure
     "chain halted", "network halted",
     "consensus failure", "rollback",
 
@@ -43,14 +43,26 @@ COINTELEGRAPH_BREAKING_KEYWORDS = [
     "breaking", "emergency", "urgent"
 ]
 
+UPDATE_KEYWORDS = [
+    "update", "confirms", "confirmed",
+    "statement", "official statement",
+    "clarifies", "responds", "response",
+    "resumes", "restored", "reopened"
+]
+
 # =====================
-# HELPER FUNCTIONS
+# LABEL & EMOJI LOGIC
 # =====================
 
 def pick_label(title: str) -> str:
     t = title.lower()
-    if any(k in t for k in COINTELEGRAPH_BREAKING_KEYWORDS):
+
+    if any(k in t for k in BREAKING_KEYWORDS):
         return "BREAKING"
+
+    if any(k in t for k in UPDATE_KEYWORDS):
+        return "UPDATE"
+
     return ""
 
 def pick_emoji(title: str) -> str:
@@ -79,10 +91,13 @@ def pick_emoji(title: str) -> str:
     ]):
         return "💥"
 
-    return "🚨"
+    if "update" in t:
+        return "🔄"
+
+    return "🔹"
 
 # =====================
-# CORE LOGIC
+# CORE FUNCTIONS
 # =====================
 
 def fetch_news():
@@ -111,7 +126,7 @@ def save_hash(h: str):
         f.write(h)
 
 # =====================
-# MAIN ENTRY POINT
+# MAIN LOGIC
 # =====================
 
 def main():
@@ -127,15 +142,15 @@ def main():
             continue
 
         label = pick_label(title)
-        if label != "BREAKING":
+        if label not in ["BREAKING", "UPDATE"]:
             continue
 
-        h = hashlib.md5(title.encode()).hexdigest()
+        h = hashlib.md5(title.lower().encode()).hexdigest()
         if h == last_hash:
             return
 
         emoji = pick_emoji(title)
-        headline = f"{emoji} BREAKING: {title}"
+        headline = f"{emoji} {label}: {title}"
 
         message = (
             f"{headline}\n\n"
