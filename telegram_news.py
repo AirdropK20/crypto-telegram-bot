@@ -61,19 +61,23 @@ def main():
         if h == last_hash:
             return
 
-emoji = pick_emoji(title)
-label = pick_label(title)
+        emoji = pick_emoji(title)
+        label = pick_label(title)
 
-if label:
-    headline = f"{emoji} {label}: {title}"
-else:
-    headline = f"{emoji} {title}"
+        if label:
+            headline = f"{emoji} {label}: {title}"
+        else:
+            headline = f"{emoji} {title}"
 
-message = (
-    f"{headline}\n\n"
-    f"Source: {source}\n"
-    f"{url}"
-)
+        message = (
+            f"{headline}\n\n"
+            f"Source: {source}\n"
+            f"{url}"
+        )
+
+        send_telegram(message)
+        save_hash(h)
+        return
 
         send_telegram(message)
         save_hash(h)
