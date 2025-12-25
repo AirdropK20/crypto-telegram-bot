@@ -18,8 +18,12 @@ jobs:
       - run: pip install requests
 
       - run: |
+    echo "=== CURRENT DIRECTORY ==="
+    pwd
+    echo "=== FILES IN ROOT ==="
     ls -la
-    python ./telegram_news.py
+    echo "=== SEARCH FOR telegram_news.py ==="
+    find . -name "telegram_news.py"
         env:
           CRYPTOPANIC_KEY: ${{ secrets.CRYPTOPANIC_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
