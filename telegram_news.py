@@ -42,9 +42,8 @@ def save_hash(h):
         f.write(h)
 
 def main():
-    last_hash = get_last_hash()
-    news = fetch_news()
-
+    send_telegram("✅ BOT IS LIVE – waiting for real crypto news")
+return
     for item in news:
         title = item.get("title", "")
         url = item.get("url", "")
