@@ -1,16 +1,71 @@
 import os
 import requests
+import hashlib
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+CRYPTOPANIC_KEY = os.getenv("CRYPTOPANIC_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+STATE_FILE = "last_hash.txt"
 
-payload = {
-    "chat_id": CHAT_ID,
-    "text": "✅ TEST: GitHub → Telegram working"
-}
+KEYWORDS = [
+    "breaking", "exchange", "etf", "approval",
+    "halt", "hack", "exploit", "inflow", "outflow"
+]
 
-r = requests.post(url, json=payload)
-print(r.status_code)
-print(r.text)
+def is_relevant(title):
+    return any(k in title.lower() for k in KEYWORDS)
+
+def fetch_news():
+    url = f"https://cryptopanic.com/api/v1/posts/?auth_token={CRYPTOPANIC_KEY}&kind=news"
+    r = requests.get(url, timeout=10)
+    if r.status_code != 200:
+        return []
+    return r.json().get("results", [])
+
+def send_telegram(text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "disable_web_page_preview": False
+    }
+    requests.post(url, json=payload, timeout=10)
+
+def get_last_hash():
+    if not os.path.exists(STATE_FILE):
+        return ""
+    return open(STATE_FILE).read().strip()
+
+def save_hash(h):
+    with open(STATE_FILE, "w") as f:
+        f.write(h)
+
+def main():
+    last_hash = get_last_hash()
+    news = fetch_news()
+
+    for item in news:
+        title = item.get("title", "")
+        url = item.get("url", "")
+        source = item.get("source", {}).get("title", "Source")
+
+        if not title or not url or not is_relevant(title):
+            continue
+
+        h = hashlib.md5(title.encode()).hexdigest()
+        if h == last_hash:
+            return
+
+        message = (
+            f"🔹 ALERT: {title}\n\n"
+            f"Source: {source}\n"
+            f"{url}"
+        )
+
+        send_telegram(message)
+        save_hash(h)
+        return
+
+if __name__ == "__main__":
+    main()
