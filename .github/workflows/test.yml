@@ -2,7 +2,7 @@ name: Crypto Telegram Alerts
 
 on:
   schedule:
-    - cron: "*/05 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
