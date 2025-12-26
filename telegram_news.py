@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import os
 import sys
 
-print("🚀 Telegram RSS Bot Started (GitHub-only)")
+print("🚀 Telegram RSS Bot Started")
 
 # =====================
 # TELEGRAM CONFIG
@@ -13,8 +13,14 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-    print("⚠️ Telegram secrets missing, exiting safely")
+    print("❌ Telegram secrets missing")
     sys.exit(0)
+
+# =====================
+# SETTINGS
+# =====================
+SEND_TEST_ALERT = True      # ← SET FALSE after you see test alert
+MAX_AGE_MINUTES = 60        # 1 hour window (important for GitHub)
 
 # =====================
 # RSS FEEDS
@@ -24,11 +30,6 @@ RSS_FEEDS = {
     "Decrypt": "https://decrypt.co/feed",
     "The Block": "https://www.theblock.co/rss.xml"
 }
-
-# =====================
-# SETTINGS (IMPORTANT)
-# =====================
-MAX_AGE_MINUTES = 10   # VERY strict freshness window
 
 # =====================
 # KEYWORDS
@@ -58,8 +59,7 @@ def send_telegram(text):
     print("Telegram status:", r.status_code)
 
 def is_breaking(title):
-    t = title.lower()
-    return any(k in t for k in BREAKING_KEYWORDS)
+    return any(k in title.lower() for k in BREAKING_KEYWORDS)
 
 def parse_pubdate(pub):
     try:
@@ -68,13 +68,21 @@ def parse_pubdate(pub):
         return None
 
 # =====================
-# MAIN LOGIC
+# STEP 1: FORCE TEST ALERT
+# =====================
+if SEND_TEST_ALERT:
+    send_telegram("✅ TEST ALERT: GitHub → Telegram is WORKING")
+    print("Test alert sent. Disable SEND_TEST_ALERT now.")
+    sys.exit(0)
+
+# =====================
+# STEP 2: REAL RSS LOGIC
 # =====================
 now = datetime.now(timezone.utc)
-sent = False  # hard stop after first alert
+alert_sent = False
 
 for source, feed in RSS_FEEDS.items():
-    if sent:
+    if alert_sent:
         break
 
     try:
@@ -96,10 +104,10 @@ for source, feed in RSS_FEEDS.items():
             if not published:
                 continue
 
-            age_minutes = (now - published).total_seconds() / 60
+            age = (now - published).total_seconds() / 60
+            print(f"Found news age {int(age)} min:", title)
 
-            # 🔒 STRICT TIME GATE
-            if age_minutes < 0 or age_minutes > MAX_AGE_MINUTES:
+            if age > MAX_AGE_MINUTES:
                 continue
 
             message = (
@@ -110,11 +118,11 @@ for source, feed in RSS_FEEDS.items():
 
             send_telegram(message)
             print("Breaking alert sent")
-            sent = True
+            alert_sent = True
             break
 
     except Exception as e:
         print("RSS error:", e)
 
-if not sent:
-    print("No fresh breaking news")
+if not alert_sent:
+    print("No breaking news in time window")
