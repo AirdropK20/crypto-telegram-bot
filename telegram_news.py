@@ -30,7 +30,7 @@ RSS_FEEDS = {
 # SETTINGS
 # =====================
 MAX_AGE_MINUTES = 30      # Fresh news window
-SEND_TEST_ALERT = True   # SET TO FALSE after first alert
+SEND_TEST_ALERT = False   # SET TO FALSE after first alert
 
 # =====================
 # KEYWORDS
