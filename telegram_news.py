@@ -1,28 +1,39 @@
+import os
 import requests
+import matplotlib.pyplot as plt
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-import os
-import sys
+import hashlib
 import random
 
-print("🚀 CryptoRover Narrative + News Bot Started")
+print("🚀 Crypto Crown Alert Bot Running")
 
 # =====================
 # TELEGRAM CONFIG
 # =====================
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-    print("Telegram secrets missing")
-    sys.exit(0)
+if not BOT_TOKEN or not CHAT_ID:
+    print("Missing Telegram secrets")
+    exit()
 
 # =====================
 # SETTINGS
 # =====================
-NEW_ITEM_WINDOW_MINUTES = 180   # 3 hours freshness
-MAX_ITEMS_PER_FEED = 2          # only newest items
-COMMENTARY_RATIO = 0.4          # 40% commentary, 60% news
+STATE_FILE = "alert_state.txt"
+NEWS_WINDOW_MIN = 180          # 3 hours
+COMMENTARY_CHANCE = 0.35       # 35% commentary
+
+# =====================
+# PRICE LEVELS
+# =====================
+PRICE_LEVELS = {
+    "BTCUSDT": [90000, 87000, 85000],
+    "ETHUSDT": [4000, 3500, 3000],
+    "GOLD": [2400, 2300],
+    "SILVER": [30, 28]
+}
 
 # =====================
 # RSS FEEDS
@@ -30,159 +41,141 @@ COMMENTARY_RATIO = 0.4          # 40% commentary, 60% news
 RSS_FEEDS = {
     "Cointelegraph": "https://cointelegraph.com/rss",
     "CoinDesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
-    "The Block": "https://www.theblock.co/rss.xml",
-    "Decrypt": "https://decrypt.co/feed",
-    "Bitcoin Magazine": "https://bitcoinmagazine.com/.rss/full/",
-    "CryptoSlate": "https://cryptoslate.com/feed/",
-    "Reuters Markets": "https://www.reuters.com/markets/rss",
+    "Reuters": "https://www.reuters.com/markets/rss"
 }
 
 # =====================
-# AUTO-EMOJI
+# STATE HANDLING
 # =====================
-def pick_emoji(title: str) -> str:
-    t = title.lower()
-    if any(k in t for k in ["hack", "exploit", "breach", "drained"]):
-        return "🚨"
-    if any(k in t for k in ["sec", "lawsuit", "court", "regulator"]):
-        return "🏛️"
-    if any(k in t for k in ["bank", "banks", "blackrock", "fidelity"]):
-        return "🏦"
-    if any(k in t for k in ["gold", "silver", "oil"]):
-        return "🥇"
-    if any(k in t for k in ["fx", "forex", "usd", "dollar"]):
-        return "💱"
-    if any(k in t for k in ["halt", "paused", "outage"]):
-        return "⚠️"
-    if any(k in t for k in ["etf", "approval", "inflows"]):
-        return "📈"
-    return "🚨"
+def load_state():
+    if not os.path.exists(STATE_FILE):
+        return set()
+    return set(open(STATE_FILE).read().splitlines())
 
-# =====================
-# CRYPTOROVER LENGTH FORMAT
-# =====================
-def format_cryptorover_length(title: str, max_len=120) -> str:
-    t = title.strip()
-    fillers = [
-        "according to", "amid", "following",
-        "after reports", "reportedly", "as per"
-    ]
-    lower = t.lower()
-    for f in fillers:
-        if f in lower:
-            t = t[:lower.index(f)].strip()
-            break
-    if len(t) > max_len:
-        t = t[:max_len].rsplit(" ", 1)[0]
-    return t
+def save_state(key):
+    with open(STATE_FILE, "a") as f:
+        f.write(key + "\n")
 
-# =====================
-# SYMBOL ADDER
-# =====================
-def add_symbols(text: str) -> str:
-    t = text.lower()
-    tags = []
-    if "bitcoin" in t or "btc" in t:
-        tags += ["#Bitcoin", "$BTC"]
-    if "ethereum" in t or "eth" in t:
-        tags += ["#Ethereum", "$ETH"]
-    clean = []
-    for tag in tags:
-        if tag not in clean:
-            clean.append(tag)
-    if clean:
-        return f"{text} {' '.join(clean)}"
-    return text
-
-# =====================
-# NARRATIVE DETECTION
-# =====================
-def detect_narrative(title: str) -> str:
-    t = title.lower()
-    if any(k in t for k in ["rwa", "real world asset", "tokenization"]):
-        return "RWA"
-    if any(k in t for k in ["etf", "institutional", "inflows"]):
-        return "INSTITUTIONS"
-    if any(k in t for k in ["bitcoin", "btc"]):
-        return "BITCOIN"
-    if any(k in t for k in ["ethereum", "eth"]):
-        return "ETH"
-    if any(k in t for k in ["gold", "silver"]):
-        return "MACRO"
-    if any(k in t for k in ["meme", "memecoin"]):
-        return "MEMES"
-    return "GENERAL"
-
-# =====================
-# BRIEF COMMENTARY (YOUR STYLE)
-# =====================
-def generate_brief_comment(narrative: str) -> str:
-    comments = {
-        "RWA": [
-            "RWA quietly won the year while everyone chased noise.\nBoring narratives print the hardest. 😆",
-            "RWA keeps building while attention stays elsewhere.\nThat’s how real cycles start.",
-        ],
-        "INSTITUTIONS": [
-            "Institutions position quietly.\nRetail notices later.",
-            "Smart money doesn’t chase headlines.\nIt accumulates.",
-        ],
-        "BITCOIN": [
-            "Bitcoin stays boring.\nBoring is bullish.",
-            "BTC does its job.\nEverything else is noise.",
-        ],
-        "ETH": [
-            "ETH compounds quietly.\nNarratives always lag price.",
-        ],
-        "MACRO": [
-            "Macro shifts take time.\nMarkets price them first.",
-        ],
-        "MEMES": [
-            "Memes grab attention.\nInfrastructure captures value.",
-        ],
-        "GENERAL": [
-            "Quiet progress beats loud speculation.\nEvery cycle.",
-        ],
-    }
-    return random.choice(comments[narrative])
+sent_state = load_state()
 
 # =====================
 # TELEGRAM SEND
 # =====================
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(
-        url,
-        json={
-            "chat_id": TELEGRAM_CHAT_ID,
-            "text": text,
-            "disable_web_page_preview": False
-        },
-        timeout=10
+def send_message(text, image=None):
+    if image:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+        files = {"photo": open(image, "rb")}
+        data = {"chat_id": CHAT_ID, "caption": text}
+        requests.post(url, files=files, data=data, timeout=10)
+    else:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text}, timeout=10)
+
+# =====================
+# PRICE FETCH
+# =====================
+def get_price(symbol):
+    if symbol in ["BTCUSDT", "ETHUSDT"]:
+        r = requests.get(
+            f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}",
+            timeout=10
+        ).json()
+        return float(r["price"])
+
+    if symbol == "GOLD":
+        return requests.get("https://api.metals.live/v1/spot/gold", timeout=10).json()[0]["gold"]
+
+    if symbol == "SILVER":
+        return requests.get("https://api.metals.live/v1/spot/silver", timeout=10).json()[0]["silver"]
+
+# =====================
+# CHART GENERATION (WITH WATERMARK)
+# =====================
+def generate_chart(symbol):
+    if symbol in ["BTCUSDT", "ETHUSDT"]:
+        klines = requests.get(
+            f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=50",
+            timeout=10
+        ).json()
+        prices = [float(k[4]) for k in klines]
+    else:
+        prices = [get_price(symbol)] * 30
+
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(prices, linewidth=2, color="#00ffcc")
+    ax.set_title(symbol.replace("USDT", ""), fontsize=14)
+    ax.grid(alpha=0.25)
+
+    # WATERMARK
+    ax.text(
+        0.99, 0.02,
+        "@Crypto_Crown20",
+        transform=ax.transAxes,
+        fontsize=9,
+        color="gray",
+        alpha=0.6,
+        ha="right",
+        va="bottom"
     )
 
-# =====================
-# FALLBACK MARKET PULSE
-# =====================
-MARKET_PULSE = [
-    "📊 Market Pulse: BTC consolidating near key levels.",
-    "📉 Market Pulse: Sentiment remains cautious.",
-    "📈 Market Pulse: Momentum building, breakout pending.",
-    "⚠️ Market Pulse: Volatility elevated.",
-]
+    filename = f"{symbol}.png"
+    plt.tight_layout()
+    plt.savefig(filename, dpi=150)
+    plt.close()
+    return filename
 
 # =====================
-# MAIN LOGIC
+# COMMENTARY ENGINE
 # =====================
-now = datetime.now(timezone.utc)
-alert_sent = False
+def brief_comment(topic):
+    comments = {
+        "BTC": [
+            "Bitcoin stays boring.\nBoring is bullish.",
+            "BTC volatility is back.\nPay attention.",
+        ],
+        "ETH": [
+            "ETH keeps compounding quietly.\nNarratives lag.",
+        ],
+        "GOLD": [
+            "Gold moves quietly.\nMacro always whispers first.",
+        ],
+        "SILVER": [
+            "Silver wakes up late.\nBut when it moves, it moves fast.",
+        ],
+        "GENERAL": [
+            "Quiet narratives print hardest.\nEvery cycle. 😆",
+        ]
+    }
+    return random.choice(comments.get(topic, comments["GENERAL"]))
 
-for source, feed in RSS_FEEDS.items():
-    if alert_sent:
-        break
-    try:
+# =====================
+# PRICE ALERT CHECK
+# =====================
+def check_price_alerts():
+    for symbol, levels in PRICE_LEVELS.items():
+        price = get_price(symbol)
+
+        for lvl in levels:
+            key = f"{symbol}_{lvl}"
+            if price < lvl and key not in sent_state:
+                chart = generate_chart(symbol)
+                text = f"🚨 {symbol.replace('USDT','')} DROPS BELOW {lvl}\n\nPrice: {round(price,2)}"
+                send_message(text, chart)
+                save_state(key)
+                return True
+    return False
+
+# =====================
+# NEWS ALERT CHECK
+# =====================
+def check_news_alerts():
+    now = datetime.now(timezone.utc)
+
+    for source, feed in RSS_FEEDS.items():
         r = requests.get(feed, timeout=10)
         root = ET.fromstring(r.content)
-        items = root.findall(".//item")[:MAX_ITEMS_PER_FEED]
+        items = root.findall(".//item")[:3]
 
         for item in items:
             title = item.findtext("title", "").strip()
@@ -198,29 +191,30 @@ for source, feed in RSS_FEEDS.items():
                 continue
 
             age = (now - published).total_seconds() / 60
-            if age > NEW_ITEM_WINDOW_MINUTES:
+            if age > NEWS_WINDOW_MIN:
                 continue
 
-            narrative = detect_narrative(title)
+            h = hashlib.md5(title.encode()).hexdigest()
+            if h in sent_state:
+                continue
 
-            # Decide commentary vs news
-            if random.random() < COMMENTARY_RATIO:
-                message = generate_brief_comment(narrative)
+            if random.random() < COMMENTARY_CHANCE:
+                msg = brief_comment("GENERAL")
             else:
-                emoji = pick_emoji(title)
-                short = format_cryptorover_length(title)
-                short = add_symbols(short)
-                message = f"{emoji} {short}\n\n{link}"
+                msg = f"📰 {title}\n\n{link}"
 
-            send_telegram(message)
-            print("Alert sent")
-            alert_sent = True
-            break
+            send_message(msg)
+            save_state(h)
+            return True
+    return False
 
-    except Exception as e:
-        print("RSS error:", e)
+# =====================
+# MAIN FLOW
+# =====================
+if check_price_alerts():
+    exit()
 
-# If no news → still send something
-if not alert_sent:
-    send_telegram(random.choice(MARKET_PULSE))
-    print("Market pulse sent")
+if check_news_alerts():
+    exit()
+
+send_message("📊 Market Pulse: No major moves yet. Watching key levels.")
