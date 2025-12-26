@@ -1,4 +1,4 @@
-name: Crypto Telegram Alerts (RSS Cached)
+name: Crypto Telegram Alerts (FINAL FIX)
 
 on:
   schedule:
@@ -16,12 +16,12 @@ jobs:
         with:
           python-version: "3.10"
 
-      - name: Restore sent hashes cache
-        uses: actions/cache@v3
+      # Restore sent hashes if they exist
+      - name: Download sent hashes
+        uses: actions/download-artifact@v4
         with:
-          path: sent_hashes.txt
-          key: sent-hashes-cache
-          restore-keys: sent-hashes-cache
+          name: sent-hashes
+        continue-on-error: true
 
       - name: Install dependencies
         run: pip install requests
@@ -32,8 +32,9 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-      - name: Save sent hashes cache
-        uses: actions/cache@v3
+      # Save updated hashes
+      - name: Upload sent hashes
+        uses: actions/upload-artifact@v4
         with:
+          name: sent-hashes
           path: sent_hashes.txt
-          key: sent-hashes-cache
