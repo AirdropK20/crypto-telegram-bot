@@ -1,4 +1,4 @@
-print("🔥 telegram_news.py MULTI-RSS STARTED 🔥")
+print("🔥 telegram_news.py STARTED 🔥")
 
 import os
 import requests
@@ -11,11 +11,14 @@ import xml.etree.ElementTree as ET
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# =====================
+# STATE FILE (PERSISTED VIA GIT COMMIT)
+# =====================
 STATE_FILE = "sent_hashes.txt"
-MAX_STORED = 100
+MAX_STORED = 200
 
 # =====================
-# MULTI RSS FEEDS
+# RSS FEEDS
 # =====================
 RSS_FEEDS = {
     "Cointelegraph": "https://cointelegraph.com/rss",
@@ -47,7 +50,7 @@ UPDATE_KEYWORDS = [
 # =====================
 # LABEL & EMOJI LOGIC
 # =====================
-def pick_label(title):
+def pick_label(title: str) -> str:
     t = title.lower()
     if any(k in t for k in BREAKING_KEYWORDS):
         return "BREAKING"
@@ -55,7 +58,7 @@ def pick_label(title):
         return "UPDATE"
     return ""
 
-def pick_emoji(title):
+def pick_emoji(title: str) -> str:
     t = title.lower()
     if any(k in t for k in ["hack", "exploit", "breach", "attack"]):
         return "🚨"
@@ -70,14 +73,14 @@ def pick_emoji(title):
 # =====================
 # STATE HANDLING
 # =====================
-def get_sent_hashes():
+def load_sent_hashes():
     if not os.path.exists(STATE_FILE):
-        return set()
-    with open(STATE_FILE) as f:
-        return set(line.strip() for line in f if line.strip())
+        return []
+    with open(STATE_FILE, "r") as f:
+        return [line.strip() for line in f if line.strip()]
 
 def save_sent_hashes(hashes):
-    hashes = list(hashes)[-MAX_STORED:]
+    hashes = hashes[-MAX_STORED:]
     with open(STATE_FILE, "w") as f:
         for h in hashes:
             f.write(h + "\n")
@@ -85,7 +88,7 @@ def save_sent_hashes(hashes):
 # =====================
 # TELEGRAM SENDER
 # =====================
-def send_telegram(text):
+def send_telegram(text: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     r = requests.post(
         url,
@@ -124,10 +127,12 @@ def fetch_rss():
 # MAIN LOGIC
 # =====================
 def main():
-    sent_hashes = get_sent_hashes()
-    news = fetch_rss()
+    sent_hashes = load_sent_hashes()
+    sent_set = set(sent_hashes)
 
-    for item in news:
+    news_items = fetch_rss()
+
+    for item in news_items:
         title = item["title"]
         url = item["url"]
         source = item["source"]
@@ -136,8 +141,9 @@ def main():
         if label not in ["BREAKING", "UPDATE"]:
             continue
 
-        h = hashlib.md5(f"{title}{url}".lower().encode()).hexdigest()
-        if h in sent_hashes:
+        h = hashlib.sha256(f"{title}|{url}".lower().encode()).hexdigest()
+
+        if h in sent_set:
             continue
 
         emoji = pick_emoji(title)
@@ -148,11 +154,14 @@ def main():
         )
 
         send_telegram(message)
-        sent_hashes.add(h)
+
+        sent_hashes.append(h)
         save_sent_hashes(sent_hashes)
+
+        print("STATE UPDATED")
         return
 
-    print("No new high-priority news found.")
+    print("No new qualifying news.")
 
 if __name__ == "__main__":
     main()
