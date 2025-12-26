@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import os
 import sys
 
-print("🚀 Telegram RSS Bot Started")
+print("🚀 Telegram RSS Bot Started (GitHub-only)")
 
 # =====================
 # TELEGRAM CONFIG
@@ -12,9 +12,8 @@ print("🚀 Telegram RSS Bot Started")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Failsafe: do NOT crash workflow
 if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-    print("⚠️ Telegram secrets not found, skipping run safely")
+    print("⚠️ Telegram secrets missing, exiting safely")
     sys.exit(0)
 
 # =====================
@@ -27,10 +26,9 @@ RSS_FEEDS = {
 }
 
 # =====================
-# SETTINGS
+# SETTINGS (IMPORTANT)
 # =====================
-MAX_AGE_MINUTES = 30      # Fresh news window
-SEND_TEST_ALERT = False   # SET TO FALSE after first alert
+MAX_AGE_MINUTES = 10   # VERY strict freshness window
 
 # =====================
 # KEYWORDS
@@ -70,19 +68,15 @@ def parse_pubdate(pub):
         return None
 
 # =====================
-# FORCE TEST ALERT
-# =====================
-if SEND_TEST_ALERT:
-    send_telegram("✅ TEST ALERT: GitHub Actions → Telegram is WORKING")
-    print("Test alert sent successfully")
-    sys.exit(0)
-
-# =====================
-# MAIN RSS LOGIC
+# MAIN LOGIC
 # =====================
 now = datetime.now(timezone.utc)
+sent = False  # hard stop after first alert
 
 for source, feed in RSS_FEEDS.items():
+    if sent:
+        break
+
     try:
         r = requests.get(feed, timeout=10)
         root = ET.fromstring(r.content)
@@ -102,8 +96,10 @@ for source, feed in RSS_FEEDS.items():
             if not published:
                 continue
 
-            age = (now - published).total_seconds() / 60
-            if age > MAX_AGE_MINUTES:
+            age_minutes = (now - published).total_seconds() / 60
+
+            # 🔒 STRICT TIME GATE
+            if age_minutes < 0 or age_minutes > MAX_AGE_MINUTES:
                 continue
 
             message = (
@@ -114,9 +110,11 @@ for source, feed in RSS_FEEDS.items():
 
             send_telegram(message)
             print("Breaking alert sent")
-            sys.exit(0)
+            sent = True
+            break
 
     except Exception as e:
         print("RSS error:", e)
 
-print("No fresh breaking news found")
+if not sent:
+    print("No fresh breaking news")
