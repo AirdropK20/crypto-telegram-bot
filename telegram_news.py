@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import os
 import sys
 
-print("🚀 Telegram RSS Bot Started")
+print("🚀 Telegram Macro + Crypto News Bot Started")
 
 # =====================
 # TELEGRAM CONFIG
@@ -19,27 +19,80 @@ if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
 # =====================
 # SETTINGS
 # =====================
-SEND_TEST_ALERT = False      # ← SET FALSE after you see test alert
-MAX_AGE_MINUTES = 10000        # 1 hour window (important for GitHub)
+MAX_AGE_MINUTES = 360   # 6 hours (best balance for GitHub-only)
 
 # =====================
-# RSS FEEDS
+# RSS FEEDS (CRYPTO + MACRO)
 # =====================
 RSS_FEEDS = {
     "Cointelegraph": "https://cointelegraph.com/rss",
+    "CoinDesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    "The Block": "https://www.theblock.co/rss.xml",
     "Decrypt": "https://decrypt.co/feed",
-    "The Block": "https://www.theblock.co/rss.xml"
+    "Bitcoin Magazine": "https://bitcoinmagazine.com/.rss/full/",
+    "CryptoSlate": "https://cryptoslate.com/feed/",
+    "BeInCrypto": "https://beincrypto.com/feed/",
+    "NewsBTC": "https://www.newsbtc.com/feed/"
 }
 
 # =====================
-# KEYWORDS
+# KEYWORDS (EXPANDED)
 # =====================
 BREAKING_KEYWORDS = [
-    "breaking", "halt", "paused", "suspended",
+    # urgency
+    "breaking", "urgent", "alert",
+
+    # crypto core
+    "bitcoin", "btc", "ethereum", "eth",
+    "crypto", "cryptocurrency", "blockchain",
+
+    # security / hacks
     "hack", "hacked", "exploit", "breach",
-    "outage", "downtime",
-    "sec", "lawsuit", "court",
-    "approval", "ban", "bankruptcy"
+    "attack", "drained", "compromised",
+
+    # exchanges / infra
+    "exchange", "binance", "coinbase",
+    "kraken", "okx", "bybit",
+    "halt", "halted", "paused", "suspended",
+    "outage", "downtime", "withdrawals",
+
+    # regulation / legal
+    "sec", "lawsuit", "court", "charged",
+    "fine", "settlement", "ban", "banned",
+    "regulator", "regulatory",
+
+    # ETFs / products
+    "etf", "spot etf", "approval", "approved",
+
+    # financial stress
+    "bankruptcy", "liquidation", "insolvent",
+    "collapse", "defaults",
+
+    # protocol / chain
+    "network halted", "chain halted",
+    "consensus failure", "rollback",
+
+    # banks / tradfi
+    "bank", "banks", "banking",
+    "fed", "federal reserve",
+    "ecb", "boj", "pboc",
+    "interest rate", "rate hike", "rate cut",
+    "inflation", "recession",
+
+    # institutions
+    "blackrock", "fidelity", "vanguard",
+    "goldman", "jp morgan", "morgan stanley",
+    "bank of america", "citigroup",
+
+    # FX / FOREX
+    "forex", "fx", "dollar", "usd",
+    "eur", "euro", "yen", "jpy",
+    "pound", "gbp", "currency",
+    "devaluation", "depeg",
+
+    # metals / commodities
+    "gold", "silver",
+    "commodities", "oil"
 ]
 
 # =====================
@@ -58,8 +111,9 @@ def send_telegram(text):
     )
     print("Telegram status:", r.status_code)
 
-def is_breaking(title):
-    return any(k in title.lower() for k in BREAKING_KEYWORDS)
+def is_relevant(title):
+    t = title.lower()
+    return any(k in t for k in BREAKING_KEYWORDS)
 
 def parse_pubdate(pub):
     try:
@@ -68,15 +122,7 @@ def parse_pubdate(pub):
         return None
 
 # =====================
-# STEP 1: FORCE TEST ALERT
-# =====================
-if SEND_TEST_ALERT:
-    send_telegram("✅ TEST ALERT: GitHub → Telegram is WORKING")
-    print("Test alert sent. Disable SEND_TEST_ALERT now.")
-    sys.exit(0)
-
-# =====================
-# STEP 2: REAL RSS LOGIC
+# MAIN LOGIC
 # =====================
 now = datetime.now(timezone.utc)
 alert_sent = False
@@ -97,7 +143,7 @@ for source, feed in RSS_FEEDS.items():
             if not title or not link:
                 continue
 
-            if not is_breaking(title):
+            if not is_relevant(title):
                 continue
 
             published = parse_pubdate(pub)
@@ -117,12 +163,12 @@ for source, feed in RSS_FEEDS.items():
             )
 
             send_telegram(message)
-            print("Breaking alert sent")
+            print("Alert sent")
             alert_sent = True
             break
 
     except Exception as e:
-        print("RSS error:", e)
+        print(f"RSS error [{source}]:", e)
 
 if not alert_sent:
-    print("No breaking news in time window")
+    print("No relevant news in time window")
