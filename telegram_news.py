@@ -19,7 +19,7 @@ if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
 # =====================
 # SETTINGS
 # =====================
-SEND_TEST_ALERT = True      # ← SET FALSE after you see test alert
+SEND_TEST_ALERT = False      # ← SET FALSE after you see test alert
 MAX_AGE_MINUTES = 60        # 1 hour window (important for GitHub)
 
 # =====================
